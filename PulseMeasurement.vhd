@@ -32,17 +32,20 @@ architecture Behavioral of PulseMeasurement is
   signal rEdgeCounter     : INTEGER Range 0 to 2:= 0;
  
   signal rEnable          : STD_LOGIC := '0';
-  signal rPulse           : STD_LOGIC := '0';
+  signal pulse_stable     : STD_LOGIC := '0';
   signal rFirstEdge       : STD_LOGIC := '0';
   signal IsFirstEdge      : STD_LOGIC := '0';
-  signal rPulseLast       : STD_LOGIC := '0';
+  signal pulse_stableLast : STD_LOGIC := '0';
   signal rMeasureDone     : STD_LOGIC := '0';
   signal rMeasureHalfDone : STD_LOGIC := '0';
   signal rMeasureDone_H   : STD_LOGIC := '0';
   signal rMeasureDone_L   : STD_LOGIC := '0';
+--------------------------------------------------
+signal pulse_sync1, pulse_sync2 : std_logic := '0';
+signal pulse_stable : std_logic := '0';
+
 begin
 --------------------------------------------------
-  rPulse <= iPulse;
   rEnable <= iEnable;
   oFirstEdge <= rFirstEdge;
   oDone <= rMeasureDone;
@@ -50,22 +53,31 @@ begin
   oHighDuration <= std_logic_vector(to_unsigned(rHighDuration,32));
   oLowDuration <= std_logic_vector(to_unsigned(rLowDuration,32));
   oPeriod <= std_logic_vector(to_unsigned(rPeriod,32));
+  pulse_stable <= pulse_sync2;
 ---------------------------------------------------------------------
+  process(iClk)
+  begin
+    if rising_edge(iClk) then
+      pulse_sync1 <= iPulse;
+      pulse_sync2 <= pulse_sync1;
+    end if;
+  end process;
 
+---------------------------------------------------------------------
   WhatIsEdge:process(iClk, iNReset)
     begin
     if iNReset = '0' then
     
       rFirstEdge <='0';
       IsFirstEdge <='0';
-      rPulseLast <= rPulseLast;
+      pulse_stableLast <= pulse_stableLast;
       
     elsif rising_edge(iClk) then
     
-      rPulseLast <= rPulse;
+      pulse_stableLast <= pulse_stable;
       
       if rEnable = '1' then
-        if (rPulse = '1') and (rPulseLast = '0') then --Rising Edge Pulse
+        if (pulse_stable = '1') and (pulse_stableLast = '0') then --Rising Edge Pulse
         
           if IsFirstEdge = '0' then
             IsFirstEdge <= '1';
@@ -73,7 +85,7 @@ begin
            
           end if;
          
-        elsif (rPulse = '0') and (rPulseLast = '1') then --Falling Edge Pulse
+        elsif (pulse_stable = '0') and (pulse_stableLast = '1') then --Falling Edge Pulse
          
           if IsFirstEdge = '0' then
             IsFirstEdge <= '1';
@@ -109,19 +121,19 @@ begin
       rMeasureDone <= '0';
 
       if rEnable = '1' then
-        if (rPulse = '1') and (rPulseLast = '0') and (IsFirstEdge = '1') then --Rising Edge Pulse
+        if (pulse_stable = '1') and (pulse_stableLast = '0') and (IsFirstEdge = '1') then --Rising Edge Pulse
           rCounter <= 1;
           rMeasureDone_H <= '1';
           rLowDuration <= rCounter;
           rEdgeCounter <= rEdgeCounter + 1;
 
-        elsif (rPulse = '0') and (rPulseLast = '1')and (IsFirstEdge = '1') then --Falling Edge Pulse
+        elsif (pulse_stable = '0') and (pulse_stableLast = '1')and (IsFirstEdge = '1') then --Falling Edge Pulse
           rCounter <= 1;
           rMeasureDone_L <= '1';
           rHighDuration <= rCounter;
           rEdgeCounter <= rEdgeCounter + 1;
 
-        elsif rPulse = rPulseLast then --Pulse level Duration
+        elsif pulse_stable = pulse_stableLast then --Pulse level Duration
           rCounter <= rCounter + 1;
           rMeasureDone_H <= '0';
           rMeasureDone_L <= '0';
